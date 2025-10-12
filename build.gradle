@@ -28,6 +28,15 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'me.paulschwarz:spring-dotenv:4.0.0'
+
+	// Google Cloud BOM + Speech-to-Text + Storage
+	implementation platform('com.google.cloud:libraries-bom:26.47.0')
+	implementation 'com.google.cloud:google-cloud-speech'
+	implementation 'com.google.cloud:google-cloud-storage'
+
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 	implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
