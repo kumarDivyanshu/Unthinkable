@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meeting Summarizer</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; }
+    .row { display: flex; gap: 2rem; }
+    .card { border: 1px solid #ddd; padding: 1rem; border-radius: 8px; }
+    input, button { padding: .5rem; }
+    ul { list-style: none; padding: 0; }
+    li { padding: .25rem 0; cursor: pointer; }
+    pre { background: #f7f7f7; padding: 1rem; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>Meeting Summarizer</h1>
+  <div id="auth" class="row">
+    <div class="card">
+      <h3>Register</h3>
+      <input id="regName" placeholder="Full name" />
+      <input id="regEmail" placeholder="Email" />
+      <input id="regPass" type="password" placeholder="Password" />
+      <button onclick="register()">Register</button>
+    </div>
+    <div class="card">
+      <h3>Login</h3>
+      <input id="loginEmail" placeholder="Email" />
+      <input id="loginPass" type="password" placeholder="Password" />
+      <button onclick="login()">Login</button>
+    </div>
+    <div class="card">
+      <h3>Status</h3>
+      <div id="status">Not logged in</div>
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <hr/>
+  <div class="row">
+    <div class="card">
+      <h3>Upload Meeting Audio</h3>
+      <input id="title" placeholder="Title (optional)" />
+      <input id="file" type="file" accept="audio/*" />
+      <button onclick="upload()">Upload & Process</button>
+      <div id="uploadResult"></div>
+    </div>
+    <div class="card" style="flex:1">
+      <h3>Your Meetings</h3>
+      <button onclick="loadMeetings()">Refresh</button>
+      <ul id="meetings"></ul>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:1rem;">
+    <h3>Meeting Details</h3>
+    <div id="detail"></div>
+  </div>
+
+<script>
+  const api = '/api';
+  function token() { return localStorage.getItem('jwt'); }
+  function setStatus() {
+    const s = document.getElementById('status');
+    s.textContent = token() ? 'Logged in' : 'Not logged in';
+  }
+  setStatus();
+
+  async function register() {
+    const fullName = document.getElementById('regName').value;
+    const email = document.getElementById('regEmail').value;
+    const password = document.getElementById('regPass').value;
+    const res = await fetch(api + '/auth/register', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fullName, email, password })
+    });
+    const data = await res.json();
+    if (res.ok && data.token) {
+      localStorage.setItem('jwt', data.token);
+      setStatus();
+      alert('Registered & logged in');
+    } else {
+      alert('Register failed: ' + JSON.stringify(data));
+    }
+  }
+
+  async function login() {
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPass').value;
+    const res = await fetch(api + '/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (res.ok && data.token) {
+      localStorage.setItem('jwt', data.token);
+      setStatus();
+      alert('Logged in');
+    } else {
+      alert('Login failed: ' + JSON.stringify(data));
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem('jwt');
+    setStatus();
+  }
+
+  async function upload() {
+    if (!token()) { alert('Please login before uploading.'); return; }
+    const f = document.getElementById('file').files[0];
+    if (!f) { alert('Choose an audio file'); return; }
+    const title = document.getElementById('title').value;
+    const fd = new FormData();
+    fd.append('file', f);
+    if (title) fd.append('title', title);
+    const res = await fetch(api + '/meetings', {
+      method: 'POST', headers: { 'Authorization': 'Bearer ' + token() }, body: fd
+    });
+    const out = document.getElementById('uploadResult');
+    if (res.ok) {
+      const data = await res.json();
+      out.textContent = 'Uploaded meeting #' + data.meetingId + ' status=' + data.status;
+      loadMeetings();
+    } else if (res.status === 401 || res.status === 403) {
+      out.textContent = 'Upload failed: not authorized. Please login again.';
+    } else {
+      out.textContent = 'Upload failed: ' + (await res.text());
+    }
+  }
+
+  async function loadMeetings() {
+    if (!token()) { alert('Please login first.'); return; }
+    const res = await fetch(api + '/meetings', { headers: { 'Authorization': 'Bearer ' + token() }});
+    if (!res.ok) { alert('Load failed' + (res.status===401||res.status===403?' (not authorized)':'')); return; }
+    const list = await res.json();
+    const ul = document.getElementById('meetings');
+    ul.innerHTML = '';
+    list.forEach(m => {
+      const li = document.createElement('li');
+      li.textContent = `#${m.meetingId} ${m.title} [${m.status}]`;
+      li.onclick = () => loadDetail(m.meetingId);
+      ul.appendChild(li);
+    });
+  }
+
+  async function loadDetail(id) {
+    if (!token()) { alert('Please login first.'); return; }
+    const res = await fetch(api + '/meetings/' + id, { headers: { 'Authorization': 'Bearer ' + token() }});
+    const el = document.getElementById('detail');
+    if (!res.ok) { el.textContent = res.status===401||res.status===403 ? 'Not authorized. Please login.' : 'Failed to load'; return; }
+    const d = await res.json();
+    el.innerHTML = ''
+      + `<div><b>Title:</b> ${d.title}</div>`
+      + `<div><b>Status:</b> ${d.status}</div>`
+      + `<h4>Summary</h4><pre>${(d.summaryText||'').replaceAll('<','&lt;')}</pre>`
+      + `<h4>Key Decisions</h4><pre>${(d.keyDecisions||'').replaceAll('<','&lt;')}</pre>`
+      + `<h4>Transcript</h4><pre>${(d.transcriptText||'').replaceAll('<','&lt;')}</pre>`
+      + `<h4>Action Items</h4>`
+      + `<ul>` + (d.actionItems||[]).map(a => `<li>${a.description} ${a.assignedTo?('('+a.assignedTo+')'):''} ${a.dueDate?('- due '+a.dueDate):''}</li>`).join('') + `</ul>`;
+  }
+</script>
+</body>
+</html>
