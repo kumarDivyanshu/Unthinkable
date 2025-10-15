@@ -6,6 +6,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -34,5 +35,28 @@ public class StorageService {
         Files.copy(file.getInputStream(), out, StandardCopyOption.REPLACE_EXISTING);
         return out;
     }
-}
 
+    public Path saveAudioFromBytes(Integer userId, byte[] data, String originalFilename) throws IOException {
+        String original = StringUtils.cleanPath(originalFilename == null ? "audio.wav" : originalFilename);
+        String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        String ext = original.contains(".") ? original.substring(original.lastIndexOf('.')) : ".wav";
+        String name = ts + "-" + UUID.randomUUID() + ext;
+        Path userDir = baseDir.resolve("user-" + userId);
+        Files.createDirectories(userDir);
+        Path out = userDir.resolve(name);
+        Files.write(out, data);
+        return out;
+    }
+
+    public Path saveAudioFromStream(Integer userId, InputStream inputStream, String originalFilename) throws IOException {
+        String original = StringUtils.cleanPath(originalFilename == null ? "audio.wav" : originalFilename);
+        String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        String ext = original.contains(".") ? original.substring(original.lastIndexOf('.')) : ".wav";
+        String name = ts + "-" + UUID.randomUUID() + ext;
+        Path userDir = baseDir.resolve("user-" + userId);
+        Files.createDirectories(userDir);
+        Path out = userDir.resolve(name);
+        Files.copy(inputStream, out, StandardCopyOption.REPLACE_EXISTING);
+        return out;
+    }
+}
